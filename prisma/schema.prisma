@@ -38,21 +38,7 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
-model Hike {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String?
-  distance    Float
-  duration    Int
-  difficulty  String
-  location    String
-  userId      String   @db.ObjectId
-  joinRequests JoinReq[]
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-model JoinReq {
+model JoinReq 
   id        String     @id @default(auto()) @map("_id") @db.ObjectId
 
   userId    String     @db.ObjectId
