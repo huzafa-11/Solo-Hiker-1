@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+enum HikingLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+enum JoinStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+model User {
+
+  
+  id    String     @id @default(auto()) @map("_id") @db.ObjectId
+  email String     @unique
+  name  String?
+  password       String
+  age            Int
+  cnic           String?
+  hikingLevel    HikingLevel   @default(BEGINNER)
+  emailVerified  Boolean       @default(false)
+   hikes Hike[]
+   joinRequests JoinReq[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Hike {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  distance    Float
+  duration    Int
+  difficulty  String
+  location    String
+  userId      String   @db.ObjectId
+  joinRequests JoinReq[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+model JoinReq {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+
+  userId    String     @db.ObjectId
+  hikeId    String     @db.ObjectId
+
+  status    JoinStatus @default(PENDING)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  hike      Hike       @relation(fields: [hikeId], references: [id])
+
+  @@unique([userId, hikeId]) // prevents duplicate requests
+}
+
+
+
