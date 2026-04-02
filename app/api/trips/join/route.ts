@@ -5,9 +5,10 @@ import { prisma } from "@/src/lib/prisma";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
@@ -29,7 +30,7 @@ export async function POST(
     }
     const updated = await prisma.trip.updateMany({
       where: {
-        id: params.id,
+        id: id,
 
         //  Trip not full
         currentParticipants: {
@@ -62,7 +63,7 @@ export async function POST(
 
     //  Fetch updated trip 
     const trip = await prisma.trip.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return NextResponse.json({
