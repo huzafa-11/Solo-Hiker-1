@@ -4,6 +4,16 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-};
-
-export default nextConfig;
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
+  },
+};export default nextConfig;

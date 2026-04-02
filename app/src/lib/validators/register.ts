@@ -8,7 +8,7 @@ export const registerSchema = z.object({
   email: z.string().email("Invalid email address").toLowerCase(),
 
   age: z
-    .number()
+    .coerce.number() // Coerce string to number (handles form data)
     .min(18, "You must be at least 18 years old")
     .max(100, "Please enter a valid age"),
 
@@ -19,7 +19,7 @@ export const registerSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       "Password must contain at least one uppercase letter, one lowercase letter, and one number"
     ),
-confirmPassword: z.string(),
+  confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"], // Error shows on confirmPassword field
