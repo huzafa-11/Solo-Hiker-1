@@ -4,11 +4,18 @@ import { authOptions } from "@/src/lib/auth";
 import { prisma } from "@/src/lib/prisma";
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: Request
 ) {
   try {
-    const { id } = await params;
+    const { id } = await req.json();
+    
+    if (!id) {
+      return NextResponse.json(
+        { success: false, message: "Trip ID is required" },
+        { status: 400 }
+      );
+    }
+    
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
