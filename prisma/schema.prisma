@@ -39,29 +39,30 @@ model User {
   hikingLevel   HikingLevel @default(BEGINNER)
   emailVerified Boolean     @default(false)
   trips         Trip[]
-  joinRequests  JoinReq[]
+  joinRequests  JoinRequest[] @relation("UserJoinRequests")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model JoinReq {
+model JoinRequest {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   userId String @db.ObjectId
-  hikeId String @db.ObjectId
+  tripId String @db.ObjectId
 
   status JoinStatus @default(PENDING)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-  trip Trip @relation(fields: [hikeId], references: [id])
+  user User @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation("TripJoinRequests", fields: [tripId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, hikeId]) // prevents duplicate requests
+  @@unique([userId, tripId])
+  @@index([userId])
+  @@index([tripId])
 }
-
 model Trip {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   createdAt DateTime @default(now())
@@ -86,5 +87,5 @@ model Trip {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   participants String[]  @db.ObjectId
-  joinRequests JoinReq[]
+  joinRequests JoinRequest[] @relation("TripJoinRequests")
 }
