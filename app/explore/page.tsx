@@ -67,6 +67,7 @@ export default function ExploreTrails() {
   const [endDate,     setEndDate]     = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [joiningId,   setJoiningId]   = useState<string | null>(null);
+  const [requestStatuses, setRequestStatuses] = useState<Record<string, string | null>>({});
 
   // Debounce text inputs — prevents API call on every keystroke
   const debouncedSearch   = useDebounce(search,   400);
@@ -95,20 +96,42 @@ export default function ExploreTrails() {
   // Fetch immediately on mount + re-fetch when filters change
   useEffect(() => { fetchTrips(); }, [fetchTrips]);
 
+  // Fetch join request statuses for all trips when trips change
+  useEffect(() => {
+    if (!session || trips.length === 0) return;
+
+    const fetchStatuses = async () => {
+      const statuses: Record<string, string | null> = {};
+      for (const trip of trips) {
+        try {
+          const res = await fetch(`/api/trips/${trip.id}/join-status`);
+          const data = await res.json();
+          statuses[trip.id] = data.status || null;
+        } catch (err) {
+          console.error(`Failed to fetch status for trip ${trip.id}:`, err);
+          statuses[trip.id] = null;
+        }
+      }
+      setRequestStatuses(statuses);
+    };
+
+    fetchStatuses();
+  }, [trips, session]);
+
   async function handleJoin(tripId: string) {
     if (!session) return;
     setJoiningId(tripId);
     try {
-      const res  = await fetch(`/api/trips/${tripId}/join`, { method: "POST" });
+      const res  = await fetch(`/api/trips/${tripId}/join`, { 
+        method: "POST"
+      });
       const data = await res.json();
       if (data.success) {
-        setTrips((prev) =>
-          prev.map((t) =>
-            t.id === tripId
-              ? { ...t, currentParticipants: t.currentParticipants + 1, participants: [...t.participants, session.user?.email ?? ""] }
-              : t
-          )
-        );
+        // Update the request status to PENDING
+        setRequestStatuses((prev) => ({
+          ...prev,
+          [tripId]: "PENDING",
+        }));
       }
     } finally {
       setJoiningId(null);
@@ -297,6 +320,7 @@ export default function ExploreTrails() {
                 trip={trip}
                 joined={isJoined(trip)}
                 joiningId={joiningId}
+                requestStatus={requestStatuses[trip.id] || null}
                 onJoin={handleJoin}
                 formatDate={formatDate}
                 hasSession={!!session}
@@ -321,11 +345,12 @@ export default function ExploreTrails() {
 
 // ─── Trip Card ────────────────────────────────────────────────
 function TripCard({
-  trip, joined, joiningId, onJoin, formatDate, hasSession,
+  trip, joined, joiningId, requestStatus, onJoin, formatDate, hasSession,
 }: {
   trip: Trip;
   joined: boolean;
   joiningId: string | null;
+  requestStatus: string | null;
   onJoin: (id: string) => void;
   formatDate: (d: string) => string;
   hasSession: boolean;
@@ -439,25 +464,50 @@ function TripCard({
             View Details
           </Link>
 
-          {joined ? (
-            <div style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: "#f0fdf4", border: "1.5px solid #bbf7d0", color: "#15803d", fontSize: 12, fontWeight: 700, textAlign: "center" }}>
-              ✓ Joined
+          {requestStatus === "APPROVED" ? (
+            // Approved button
+            <div style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: "#dcfce7", border: "1.5px solid #bbf7d0", color: "#16a34a", fontSize: 12, fontWeight: 700, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              ✓ Approved
+            </div>
+          ) : requestStatus === "PENDING" ? (
+            // Pending button (red)
+            <div style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: "#fee2e2", border: "1.5px solid #fecaca", color: "#dc2626", fontSize: 12, fontWeight: 700, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              ⏳ Pending
+            </div>
+          ) : requestStatus === "REJECTED" ? (
+            // Rejected button
+            <div style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: "#fee2e2", border: "1.5px solid #fecaca", color: "#dc2626", fontSize: 12, fontWeight: 700, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              ✗ Rejected
             </div>
           ) : (
+            // Join button
             <button
               onClick={() => hasSession && !isFull && onJoin(trip.id)}
               disabled={joiningId === trip.id || isFull || !hasSession}
               style={{
-                flex: 1, padding: "8px 0", borderRadius: 10, border: "none",
-                fontSize: 12, fontWeight: 700, color: "#fff",
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: 10,
+                border: "none",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#fff",
                 cursor: isFull || !hasSession ? "not-allowed" : "pointer",
-                background: isFull || !hasSession ? "#d1d5db" : "#16a34a",  // ← green theme
+                background: isFull || !hasSession ? "#d1d5db" : "#16a34a",
                 transition: "background 0.15s, transform 0.1s",
               }}
-              onMouseEnter={e => { if (!isFull && hasSession && joiningId !== trip.id) e.currentTarget.style.background = "#15803d"; }}
-              onMouseLeave={e => { if (!isFull && hasSession) e.currentTarget.style.background = "#16a34a"; }}
-              onMouseDown={e  => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={e    => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseEnter={e => {
+                if (!isFull && hasSession && joiningId !== trip.id) e.currentTarget.style.background = "#15803d";
+              }}
+              onMouseLeave={e => {
+                if (!isFull && hasSession) e.currentTarget.style.background = "#16a34a";
+              }}
+              onMouseDown={e => {
+                e.currentTarget.style.transform = "scale(0.97)";
+              }}
+              onMouseUp={e => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
             >
               {joiningId === trip.id ? "Joining..." : isFull ? "Full" : "Join Trip"}
             </button>

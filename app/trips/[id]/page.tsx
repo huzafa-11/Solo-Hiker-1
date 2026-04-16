@@ -104,6 +104,8 @@ export default function TripDetailPage() {
   const { id }            = useParams<{ id: string }>();
   const router            = useRouter();
   const { data: session } = useSession();
+  const userEmail         = session?.user?.email ?? "";
+  const userId            = session?.user?.id;
 
   const [trip,      setTrip]      = useState<Trip | null>(null);
   const [loading,   setLoading]   = useState(true);
@@ -115,26 +117,84 @@ export default function TripDetailPage() {
   const [copied,    setCopied]    = useState(false);
   const [visible,   setVisible]   = useState(false);
 
+  // Join requests management
+  const [joinRequests, setJoinRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [joinStatus, setJoinStatus] = useState<"PENDING" | "APPROVED" | "REJECTED" | null>(null);
+
+  async function loadTripDetails() {
+    if (!id) return null;
+
+    const res = await fetch(`/api/trips/${id}`);
+    const data = await res.json();
+    if (!data.success) return null;
+
+    setTrip(data.trip);
+    setLiked(data.trip.likes?.includes(userEmail) || false);
+    setJoined(
+      data.trip.participants?.some((p: Participant) => p.email === userEmail) || false
+    );
+
+    return data.trip as Trip;
+  }
+
+  async function loadJoinRequests() {
+    if (!id) return;
+
+    setLoadingRequests(true);
+    try {
+      const res = await fetch(`/api/trips/${id}/join-requests`);
+      const data = await res.json();
+      setJoinRequests(Array.isArray(data) ? data : data.requests || []);
+    } catch (e) {
+      console.error("Failed to fetch join requests:", e);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }
+
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
-        const res  = await fetch(`/api/trips/${id}`);
-        const data = await res.json();
-        if (data.success) {
-          setTrip(data.trip);
-          const userEmail = session?.user?.email ?? "";
-          setLiked(data.trip.likes?.includes(userEmail) || false);
+        await loadTripDetails();
           // participants is now an array of objects — check by email
-          setJoined(
-            data.trip.participants?.some((p: Participant) => p.email === userEmail) || false
-          );
-        }
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
         setTimeout(() => setVisible(true), 50);
+      }
+    })();
+  }, [id, session, userEmail]);
+
+  // Fetch join requests if user is the organizer
+  useEffect(() => {
+    if (!id || !trip || trip.user.id !== userId) return;
+
+    (async () => {
+      try {
+        await loadJoinRequests();
+      } catch (e) {
+        console.error("Failed to fetch join requests:", e);
+      }
+    })();
+  }, [id, trip, userId]);
+
+  useEffect(() => {
+    if (!id || !session) {
+      setJoinStatus(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/trips/${id}/join-status`);
+        const data = await res.json();
+        setJoinStatus(data.status ?? null);
+      } catch (e) {
+        console.error("Failed to fetch join status:", e);
       }
     })();
   }, [id, session]);
@@ -170,10 +230,7 @@ export default function TripDetailPage() {
       const res  = await fetch(`/api/trips/${trip.id}/join`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        setJoined(true);
-        setTrip((prev) =>
-          prev ? { ...prev, currentParticipants: prev.currentParticipants + 1 } : prev
-        );
+        setJoinStatus("PENDING");
       }
     } finally {
       setJoining(false);
@@ -184,6 +241,42 @@ export default function TripDetailPage() {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    setProcessingRequestId(requestId);
+    try {
+      const res = await fetch(`/api/join-requests/${requestId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "APPROVED" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await Promise.all([loadTripDetails(), loadJoinRequests()]);
+      }
+    } catch (e) {
+      console.error("Failed to accept request:", e);
+    } finally {
+      setProcessingRequestId(null);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    setProcessingRequestId(requestId);
+    try {
+      const res = await fetch(`/api/join-requests/${requestId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "REJECTED" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadJoinRequests();
+      }
+    } catch (e) {
+      console.error("Failed to reject request:", e);
+    } finally {
+      setProcessingRequestId(null);
+    }
   };
 
   // ── Loading skeleton ──
@@ -221,6 +314,7 @@ export default function TripDetailPage() {
   const spotsLeft  = trip.maxParticipants - trip.currentParticipants;
   const isFull     = spotsLeft <= 0;
   const fillPct    = Math.round((trip.currentParticipants / trip.maxParticipants) * 100);
+  const isOrganizer = trip.user.id === userId;
 
   // ── Google Maps embed URL — no API key needed ──
   const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(trip.location)}&z=13&output=embed`;
@@ -434,15 +528,27 @@ export default function TripDetailPage() {
               </div>
 
               {/* CTA */}
-              {joined ? (
+              {isOrganizer ? (
+                <div style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#eff6ff", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#2563eb", fontWeight: 700, fontSize: 14 }}>
+                  <FaCheckCircle size={16} /> You&apos;re the organizer
+                </div>
+              ) : joined ? (
                 <div style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#dcfce7", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#16a34a", fontWeight: 700, fontSize: 14 }}>
                   <FaCheckCircle size={16} /> You&apos;re in!
+                </div>
+              ) : joinStatus === "PENDING" ? (
+                <div style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#fef3c7", border: "1px solid #fde68a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#d97706", fontWeight: 700, fontSize: 14 }}>
+                  <FaClock size={16} /> Request pending
+                </div>
+              ) : joinStatus === "REJECTED" ? (
+                <div style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#f3f4f6", border: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#6b7280", fontWeight: 700, fontSize: 14 }}>
+                  <FaCheckCircle size={16} /> Request rejected
                 </div>
               ) : (
                 <button
                   onClick={handleJoin}
-                  disabled={joining || isFull || !session}
-                  style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: isFull || !session ? "#e5e7eb" : "linear-gradient(135deg,#16a34a,#15803d)", color: isFull || !session ? "#9ca3af" : "#fff", fontWeight: 700, fontSize: 14, cursor: isFull || !session ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: isFull || !session ? "none" : "0 4px 14px rgba(22,163,74,0.35)", transition: "all 0.2s" }}
+                  disabled={joining || isFull || !session || isOrganizer || joinStatus === "APPROVED"}
+                  style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: joining || isFull || !session || isOrganizer || joinStatus === "APPROVED" ? "#e5e7eb" : "linear-gradient(135deg,#16a34a,#15803d)", color: joining || isFull || !session || isOrganizer || joinStatus === "APPROVED" ? "#9ca3af" : "#fff", fontWeight: 700, fontSize: 14, cursor: joining || isFull || !session || isOrganizer || joinStatus === "APPROVED" ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: joining || isFull || !session || isOrganizer || joinStatus === "APPROVED" ? "none" : "0 4px 14px rgba(22,163,74,0.35)", transition: "all 0.2s" }}
                 >
                   {joining ? (
                     <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
@@ -507,6 +613,152 @@ export default function TripDetailPage() {
 
           </div>
         </div>
+
+        {/* ── Join Requests  Section (Organizer Only) ── */}
+        {trip.user.id === session?.user?.id && (
+          <div style={{ marginTop: 32, background: "#fff", borderRadius: 16, padding: 24, border: "1px solid #f0f0f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, letterSpacing: -0.3 }}>Join Requests</h2>
+              <div style={{ display: "flex", gap: 8 }}>
+                {joinRequests.length > 0 && (
+                  <>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 20, background: "#fef3c7", color: "#d97706" }}>
+                      ⏳ {joinRequests.filter(r => r.status === "PENDING").length} Pending
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 20, background: "#dcfce7", color: "#16a34a" }}>
+                      ✓ {joinRequests.filter(r => r.status === "APPROVED").length} Approved
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {loadingRequests ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <div style={{ display: "inline-block", width: 32, height: 32, border: "3px solid #e5e7eb", borderTopColor: "#16a34a", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+              </div>
+            ) : joinRequests.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <FaUsers size={32} color="#d1d5db" style={{ marginBottom: 12 }} />
+                <p style={{ fontSize: 14, color: "#9ca3af", margin: 0 }}>No join requests yet</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {joinRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "auto 1fr auto",
+                      gap: 12,
+                      alignItems: "center",
+                      padding: 16,
+                      borderRadius: 12,
+                      background: request.status === "PENDING" ? "#fffbeb" : request.status === "APPROVED" ? "#f0fdf4" : "#f3f4f6",
+                      border: `1px solid ${request.status === "PENDING" ? "#fde68a" : request.status === "APPROVED" ? "#bbf7d0" : "#e5e7eb"}`,
+                    }}
+                  >
+                    {/* Requester Avatar + Info */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg,#60a5fa,#2563eb)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontWeight: 800,
+                          fontSize: 14,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {request.user.name?.[0]?.toUpperCase() ?? "?"}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>
+                          {request.user.name ?? "Unknown"}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
+                          {request.user.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        background:
+                          request.status === "PENDING"
+                            ? "#fbbf24"
+                            : request.status === "APPROVED"
+                            ? "#16a34a"
+                            : "#6b7280",
+                        color: "#fff",
+                        textAlign: "center",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {request.status === "PENDING" ? "⏳ Pending" : request.status === "APPROVED" ? "✓ Approved" : "✗ Rejected"}
+                    </span>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {request.status === "PENDING" && (
+                        <>
+                          <button
+                            onClick={() => handleAcceptRequest(request.id)}
+                            disabled={processingRequestId === request.id}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: "#16a34a",
+                              color: "#fff",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#15803d")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "#16a34a")}
+                          >
+                            {processingRequestId === request.id ? "..." : "Accept"}
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(request.id)}
+                            disabled={processingRequestId === request.id}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: "#dc2626",
+                              color: "#fff",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#b91c1c")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "#dc2626")}
+                          >
+                            {processingRequestId === request.id ? "..." : "Reject"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <style>{`

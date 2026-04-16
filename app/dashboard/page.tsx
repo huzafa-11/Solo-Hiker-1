@@ -117,7 +117,7 @@ export default function Dashboard() {
     if (status !== "authenticated") return;
     (async () => {
       try {
-        const res  = await fetch("/api/trips?mine=true");
+        const res  = await fetch("/api/trips/my-trips");
         const data = await res.json();
         const sorted = (data.trips || []).sort(
           (a: Trip, b: Trip) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()

@@ -11,7 +11,7 @@ import { FaMountain } from "react-icons/fa";
 export const NAV_ITEMS = [
   { label: "Dashboard",      href: "/dashboard", Icon: MdDashboard },
   { label: "Explore Trails", href: "/explore",   Icon: MdExplore   },
-  { label: "My Trips",       href: "/trips",     Icon: MdMap       },
+  { label: "My Trips",       href: "/trip",     Icon: MdMap       },
   { label: "Profile",        href: "/profile",   Icon: MdPerson    },
   { label: "Settings",       href: "/settings",  Icon: MdSettings  },
 ];
