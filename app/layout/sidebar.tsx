@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  MdDashboard, MdExplore, MdMap, MdPerson, MdSettings,
+  MdDashboard, MdExplore, MdMap, MdPerson, MdSettings, MdMessage,
 } from "react-icons/md";
 import { FaMountain } from "react-icons/fa";
 
@@ -11,8 +11,9 @@ import { FaMountain } from "react-icons/fa";
 export const NAV_ITEMS = [
   { label: "Dashboard",      href: "/dashboard", Icon: MdDashboard },
   { label: "Explore Trails", href: "/explore",   Icon: MdExplore   },
-  { label: "My Trips",       href: "/trip",     Icon: MdMap       },
+  { label: "My Trips",       href: "/trip",      Icon: MdMap       },
   { label: "Profile",        href: "/profile",   Icon: MdPerson    },
+  { label: "Chats",          href: "/chats",     Icon: MdMessage   },
   { label: "Settings",       href: "/settings",  Icon: MdSettings  },
 ];
 

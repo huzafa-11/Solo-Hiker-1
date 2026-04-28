@@ -89,3 +89,69 @@ model Trip {
   participants String[]  @db.ObjectId
   joinRequests JoinRequest[] @relation("TripJoinRequests")
 }
+// ─────────────────────────────────────────────
+// CHAT FEATURE — Naye Models
+// Existing models ko bilkul touch mat karo
+// ─────────────────────────────────────────────
+
+model Conversation {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  // ↑ MongoDB ka default ObjectId
+
+  participants String[] @db.ObjectId
+  // ↑ Array of User IDs jo is conversation mein hain
+  // ↑ Example: ["64abc...", "64def..."]
+  // ↑ @db.ObjectId: yeh MongoDB ObjectId hain
+
+  lastMessage     String?  @default("")
+  // ↑ Conversation list mein preview ke liye
+  // ↑ ? = optional — pehle koi message nahi hota
+
+  lastMessageTime DateTime @default(now())
+  // ↑ Sorting ke liye — latest conversation upar dikhe
+
+  messages Message[]
+  // ↑ Is conversation ke saare messages (relation)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Message {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  conversationId String   @db.ObjectId
+  // ↑ Kaunsi conversation mein hai yeh message
+  // ↑ Conversation model se linked hai
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  // ↑ Agar conversation delete ho → saare messages bhi delete
+  // ↑ fields: [conversationId] → yeh field use karo
+  // ↑ references: [id] → Conversation ka id se match karo
+
+  senderId   String @db.ObjectId
+  // ↑ Kisne bheja — User ka _id
+  // ↑ Note: Direct relation nahi banaya kyunke
+  //   WebSocket mein hum string ID use karte hain
+
+  senderName String
+  // ↑ User ka naam — denormalization
+  // ↑ Matlab: User delete ho jaaye phir bhi naam dikhega
+
+  text String
+  // ↑ Message ka content
+
+  isRead Boolean  @default(false)
+  // ↑ Padha ya nahi — read receipt ke liye
+
+  readAt DateTime?
+  // ↑ Kab padha — null agar abhi tak nahi padha
+  // ↑ ? = optional
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId])
+  // ↑ Index: conversationId pe search fast hogi
+  // ↑ Jab conversation ke messages load karein ge toh fast aayenge
+}

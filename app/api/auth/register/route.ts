@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     // STEP 1: Get the data from the request
     // req.json() reads the JSON data sent from the frontend
     const body = await req.json();
-    console.log("📥 Received registration data:", body);
+    console.log(" Received registration data:", body);
 
     // STEP 2: Validate the data with Zod
     // safeParse() checks if the data matches our schema
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     if (!result.success) {
       // Validation failed - send back the errors
-      console.log("❌ Validation failed:", result.error.issues);
+      console.log(" Validation failed:", result.error.issues);
       return NextResponse.json(
         {
           success: false,
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     // STEP 3: Extract the validated data
     const data = result.data;
-    console.log("✅ Data validated successfully");
+    console.log(" Data validated successfully");
 
     // STEP 4: Check if email already exists
     // We don't want duplicate emails in our database
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      console.log("❌ Email already exists");
+      console.log(" Email already exists");
       return NextResponse.json(
         {
           success: false,
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     // NEVER store passwords in plain text!
    // Even if someone steals your database, they can't read passwords
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    console.log("✅ Password hashed");
+    console.log(" Password hashed");
     // STEP 6: Create the user in the database
     const user = await prisma.user.create({
       data: {
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("✅ User created successfully:", user.id);
+    console.log(" User created successfully:", user.id);
 
     // STEP 7: Return success response
     return NextResponse.json(
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     // STEP 8: Handle any unexpected errors
-    console.error("❌ Registration error:", error);
+    console.error(" Registration error:", error);
     return NextResponse.json(
       {
         success: false,
