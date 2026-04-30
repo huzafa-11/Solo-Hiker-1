@@ -21,7 +21,8 @@
     "paths": {
       "@/*": ["./app/*", "./*"]
     },
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["next", "next/image-types/global"]
   },
   "include": [
     "next-env.d.ts",
@@ -29,7 +30,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "app/global.d.ts"
   ],
   "exclude": ["node_modules"]
 }

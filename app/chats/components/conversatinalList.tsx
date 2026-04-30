@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { MdSearch, MdTune, MdAdd } from "react-icons/md";
+import { useWebSocket } from "@/context/WebsocketContext";
 import { Conversation } from "../page";
 
 interface Props {
@@ -12,20 +13,68 @@ interface Props {
 
 export function ConversationList({ selectedId, onSelect }: Props) {
   const { data: session } = useSession();
+  const { onlineUsers, wsRef } = useWebSocket();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
 
-  // Fetch conversations
+  // ── Fetch conversations ──
   useEffect(() => {
     if (!session?.user) return;
     fetchConversations();
   }, [session]);
 
+  // ── Jab conversation select ho → 1 sec baad refresh ──
+  useEffect(() => {
+    if (!selectedId) return;
+    const timer = setTimeout(() => {
+      fetchConversations();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [selectedId]);
+
+  // ── Real-time last message update ──
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+
+    const handleMessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "chat") {
+          // Conversation list mein last message update karo
+          setConversations((prev) =>
+            prev.map((conv) =>
+              conv.id === data.message.conversationId
+                ? {
+                    ...conv,
+                    lastMessage: data.message.text,
+                    lastMessageTime: data.message.createdAt,
+                    // Agar yeh conversation selected nahi hai toh unread count badao
+                    unreadCount:
+                      conv.id !== selectedId
+                        ? (conv.unreadCount ?? 0) + 1
+                        : 0,
+                  }
+                : conv
+            )
+          );
+        }
+      } catch (err) {
+        console.error("WS error:", err);
+      }
+    };
+
+    ws.addEventListener("message", handleMessage);
+    return () => ws.removeEventListener("message", handleMessage);
+  }, [wsRef.current, selectedId]);
+
   const fetchConversations = async () => {
     try {
-      const res = await fetch("/api/chat/conversations");
+      // ✅ Fix — /api/chat/ (singular)
+      const res = await fetch("/api/chats/conversations");
+      if (!res.ok) return;
       const data = await res.json();
       setConversations(data);
     } catch (err) {
@@ -35,7 +84,6 @@ export function ConversationList({ selectedId, onSelect }: Props) {
     }
   };
 
-  // Filter logic
   const filtered = conversations.filter((conv) => {
     const matchSearch = conv.otherUserName
       .toLowerCase()
@@ -56,8 +104,7 @@ export function ConversationList({ selectedId, onSelect }: Props) {
       "#16a34a", "#f97316", "#3b82f6",
       "#8b5cf6", "#ec4899", "#14b8a6",
     ];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
+    return colors[name.charCodeAt(0) % colors.length];
   };
 
   const formatTime = (dateStr: string) => {
@@ -77,29 +124,27 @@ export function ConversationList({ selectedId, onSelect }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff" }}>
 
       {/* ── Header ── */}
       <div style={{
         padding: "16px 16px 0",
-        borderBottom: "1px solid var(--sidebar-border)",
+        borderBottom: "1px solid #e5e7eb",
+        background: "#fff",
       }}>
         <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12,
+          display: "flex", alignItems: "center",
+          justifyContent: "space-between", marginBottom: 12,
         }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>
             Messages
           </h2>
           <button style={{
-            width: 32, height: 32,
-            borderRadius: 8,
-            border: "1px solid var(--sidebar-border)",
+            width: 32, height: 32, borderRadius: 8,
+            border: "1px solid #e5e7eb",
             background: "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "var(--gray-500)",
+            cursor: "pointer", color: "#6b7280",
           }}>
             <MdTune size={16} />
           </button>
@@ -108,12 +153,11 @@ export function ConversationList({ selectedId, onSelect }: Props) {
         {/* Search */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
-          background: "var(--page-bg)",
-          border: "1px solid var(--sidebar-border)",
-          borderRadius: 10, padding: "8px 12px",
-          marginBottom: 12,
+          background: "#f9fafb",
+          border: "1px solid #e5e7eb",
+          borderRadius: 10, padding: "8px 12px", marginBottom: 12,
         }}>
-          <MdSearch size={16} color="var(--gray-400)" />
+          <MdSearch size={16} color="#9ca3af" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -136,9 +180,9 @@ export function ConversationList({ selectedId, onSelect }: Props) {
                 padding: "8px 14px",
                 border: "none", background: "transparent",
                 fontSize: 13, fontWeight: activeTab === tab ? 700 : 500,
-                color: activeTab === tab ? "var(--green-700)" : "var(--gray-400)",
+                color: activeTab === tab ? "#15803d" : "#9ca3af",
                 borderBottom: activeTab === tab
-                  ? "2px solid var(--green-600)"
+                  ? "2px solid #16a34a"
                   : "2px solid transparent",
                 cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 6,
@@ -147,10 +191,9 @@ export function ConversationList({ selectedId, onSelect }: Props) {
               {tab === "all" ? "All" : "Unread"}
               {tab === "unread" && unreadCount > 0 && (
                 <span style={{
-                  background: "var(--green-600)",
-                  color: "#fff", fontSize: 10,
-                  borderRadius: 10, padding: "1px 6px",
-                  fontWeight: 700,
+                  background: "#16a34a", color: "#fff",
+                  fontSize: 10, borderRadius: 10,
+                  padding: "1px 6px", fontWeight: 700,
                 }}>
                   {unreadCount}
                 </span>
@@ -163,25 +206,24 @@ export function ConversationList({ selectedId, onSelect }: Props) {
       {/* ── List ── */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
-          // Loading skeletons
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{
               display: "flex", alignItems: "center", gap: 12,
               padding: "12px 16px",
-              borderBottom: "1px solid var(--sidebar-border)",
+              borderBottom: "1px solid #e5e7eb",
             }}>
               <div style={{
                 width: 44, height: 44, borderRadius: "50%",
-                background: "var(--sidebar-border)", flexShrink: 0,
+                background: "#e5e7eb", flexShrink: 0,
               }} />
               <div style={{ flex: 1 }}>
                 <div style={{
                   height: 12, width: "60%", borderRadius: 6,
-                  background: "var(--sidebar-border)", marginBottom: 8,
+                  background: "#e5e7eb", marginBottom: 8,
                 }} />
                 <div style={{
                   height: 10, width: "80%", borderRadius: 6,
-                  background: "var(--sidebar-border)",
+                  background: "#e5e7eb",
                 }} />
               </div>
             </div>
@@ -189,7 +231,7 @@ export function ConversationList({ selectedId, onSelect }: Props) {
         ) : filtered.length === 0 ? (
           <div style={{
             padding: 32, textAlign: "center",
-            color: "var(--gray-400)", fontSize: 13,
+            color: "#9ca3af", fontSize: 13,
           }}>
             No conversations found
           </div>
@@ -201,14 +243,14 @@ export function ConversationList({ selectedId, onSelect }: Props) {
               style={{
                 display: "flex", alignItems: "center", gap: 12,
                 padding: "12px 16px",
-                borderBottom: "1px solid var(--sidebar-border)",
+                borderBottom: "1px solid #f3f4f6",
                 background: selectedId === conv.id ? "#f0fdf4" : "transparent",
                 cursor: "pointer",
                 transition: "background 0.15s",
               }}
               onMouseEnter={(e) => {
                 if (selectedId !== conv.id)
-                  e.currentTarget.style.background = "var(--page-bg)";
+                  e.currentTarget.style.background = "#f9fafb";
               }}
               onMouseLeave={(e) => {
                 if (selectedId !== conv.id)
@@ -218,17 +260,18 @@ export function ConversationList({ selectedId, onSelect }: Props) {
               {/* Avatar */}
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: "50%",
+                  width: 46, height: 46, borderRadius: "50%",
                   background: getAvatarColor(conv.otherUserName),
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontWeight: 700, fontSize: 16,
+                  color: "#fff", fontWeight: 700, fontSize: 17,
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}>
                   {getInitial(conv.otherUserName)}
                 </div>
-                {conv.isOnline && (
+                {onlineUsers.has(conv.otherUserId) && (
                   <div style={{
                     position: "absolute", bottom: 1, right: 1,
-                    width: 11, height: 11,
+                    width: 12, height: 12,
                     background: "#22c55e", borderRadius: "50%",
                     border: "2px solid #fff",
                   }} />
@@ -244,7 +287,9 @@ export function ConversationList({ selectedId, onSelect }: Props) {
                   {conv.otherUserName}
                 </div>
                 <div style={{
-                  fontSize: 12, color: "var(--gray-500)",
+                  fontSize: 12,
+                  color: (conv.unreadCount ?? 0) > 0 ? "#111827" : "#6b7280",
+                  fontWeight: (conv.unreadCount ?? 0) > 0 ? 600 : 400,
                   whiteSpace: "nowrap", overflow: "hidden",
                   textOverflow: "ellipsis",
                 }}>
@@ -257,14 +302,18 @@ export function ConversationList({ selectedId, onSelect }: Props) {
                 display: "flex", flexDirection: "column",
                 alignItems: "flex-end", gap: 4, flexShrink: 0,
               }}>
-                <div style={{ fontSize: 11, color: "var(--gray-400)" }}>
+                <div style={{
+                  fontSize: 11,
+                  color: (conv.unreadCount ?? 0) > 0 ? "#16a34a" : "#9ca3af",
+                  fontWeight: (conv.unreadCount ?? 0) > 0 ? 600 : 400,
+                }}>
                   {formatTime(conv.lastMessageTime)}
                 </div>
                 {(conv.unreadCount ?? 0) > 0 && (
                   <div style={{
-                    background: "var(--green-600)",
+                    background: "#16a34a",
                     color: "#fff", fontSize: 10,
-                    borderRadius: 10, padding: "1px 7px",
+                    borderRadius: 10, padding: "2px 7px",
                     fontWeight: 700, minWidth: 20,
                     textAlign: "center",
                   }}>
@@ -278,16 +327,22 @@ export function ConversationList({ selectedId, onSelect }: Props) {
       </div>
 
       {/* ── New Message Button ── */}
-      <div style={{ padding: 16, borderTop: "1px solid var(--sidebar-border)" }}>
+      <div style={{ padding: 16, borderTop: "1px solid #e5e7eb" }}>
         <button style={{
-          width: "100%", padding: "10px 0",
-          border: "1px dashed var(--green-600)",
-          borderRadius: 10, background: "transparent",
-          color: "var(--green-700)", fontSize: 13,
+          width: "100%", padding: "11px 0",
+          border: "none",
+          borderRadius: 12,
+          background: "#16a34a",
+          color: "#fff", fontSize: 13,
           fontWeight: 600, cursor: "pointer",
           display: "flex", alignItems: "center",
           justifyContent: "center", gap: 6,
-        }}>
+          boxShadow: "0 2px 8px rgba(22,163,74,0.3)",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "#15803d"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "#16a34a"}
+        >
           <MdAdd size={16} /> New Message
         </button>
       </div>
