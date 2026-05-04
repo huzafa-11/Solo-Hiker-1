@@ -178,27 +178,70 @@ export default function Dashboard() {
       <div style={{ padding: "20px 24px" }}>
 
         {/* ── Hero Banner ── */}
-        <div className="card" style={{ marginBottom: 20, borderRadius: 16, overflow: "hidden", position: "relative", height: 185 }}>
-          <img
-            src="https://images.unsplash.com/photo-1464422759023-fed622ff2c3b?w=1400&h=400&fit=crop"
-            alt="mountains"
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.55 }}
-          />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(15,76,37,0.88), rgba(15,76,37,0.45) 60%, transparent)" }} />
-          <div style={{ position: "relative", padding: "24px 28px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ background: "rgba(22,163,74,0.9)", backdropFilter: "blur(8px)", borderRadius: 20, padding: "5px 14px", color: "#fff", fontSize: 12, fontWeight: 600, border: "1px solid rgba(255,255,255,0.2)" }}>✅ Verify Email</span>
-              <span style={{ background: "rgba(239,68,68,0.85)", backdropFilter: "blur(8px)", borderRadius: 20, padding: "5px 14px", color: "#fff", fontSize: 12, fontWeight: 600, border: "1px solid rgba(255,255,255,0.2)" }}>🔄 Complete Profile — 85% Done</span>
-            </div>
-            <div>
-              <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 800, letterSpacing: -0.5, margin: "0 0 4px" }}>{greeting}, {userName}! 👋</h2>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, margin: "0 0 14px" }}>Ready for your next adventure?</p>
-              <Link href="/explore" style={{ background: "#fff", color: "var(--green-700)", fontSize: 12, padding: "8px 18px", borderRadius: 9, display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, textDecoration: "none" }}>
-                Explore Now <MdArrowForward size={14} />
-              </Link>
-            </div>
-          </div>
-        </div>
+<div
+  style={{
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+    position: "relative",
+    height: 250,
+    minHeight: 200,
+    maxWidth: "100%",   // ← yeh add karo
+    boxSizing: "border-box", // ← yeh bhi
+  }}
+>
+  <img
+    src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&q=80"
+    alt="mountains"
+    style={{
+      position: "absolute",
+      inset: 0,
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      opacity: 0.55,
+    }}
+  />
+  <div
+    style={{
+      position: "absolute",
+      inset: 0,
+      background:
+        "linear-gradient(to right, rgba(15,76,37,0.88), rgba(15,76,37,0.45) 60%, transparent)",
+    }}
+  />
+  <div
+    style={{
+      position: "relative",
+      padding: "20px 20px", // ← mobile pe padding thodi kam karo
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "space-between",
+      boxSizing: "border-box", // ← important
+    }}
+  >
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ background: "rgba(22,163,74,0.9)", backdropFilter: "blur(8px)", borderRadius: 20, padding: "5px 14px", color: "#fff", fontSize: 12, fontWeight: 600, border: "1px solid rgba(255,255,255,0.2)", whiteSpace: "nowrap" }}>
+        ✅ Verify Email
+      </span>
+      <span style={{ background: "rgba(239,68,68,0.85)", backdropFilter: "blur(8px)", borderRadius: 20, padding: "5px 14px", color: "#fff", fontSize: 12, fontWeight: 600, border: "1px solid rgba(255,255,255,0.2)", whiteSpace: "nowrap" }}>
+        🔄 Complete Profile — 85% Done
+      </span>
+    </div>
+    <div>
+      <h2 style={{ color: "#fff", fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 800, letterSpacing: -0.5, margin: "0 0 4px" }}>
+        {greeting}, {userName}! 👋
+      </h2>
+      <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, margin: "0 0 14px" }}>
+        Ready for your next adventure?
+      </p>
+      <Link href="/explore" style={{ background: "#fff", color: "var(--green-700)", fontSize: 12, padding: "8px 18px", borderRadius: 9, display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, textDecoration: "none" }}>
+        Explore Now <MdArrowForward size={14} />
+      </Link>
+    </div>
+  </div>
+</div>
 
         {/* ── Row 1: Stats | Featured Trail | Recent Activity ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr", gap: 16, marginBottom: 16 }} className="dash-row">

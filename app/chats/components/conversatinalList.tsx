@@ -18,6 +18,11 @@ export function ConversationList({ selectedId, onSelect }: Props) {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [users, setUsers] = useState<{id: string; name: string | null; email: string; hikingLevel: string}[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [starting, setStarting] = useState(false);
+  const userId = (session?.user as any)?.id;
 
   // ── Fetch conversations ──
   useEffect(() => {
@@ -33,7 +38,44 @@ export function ConversationList({ selectedId, onSelect }: Props) {
     }, 1000);
     return () => clearTimeout(timer);
   }, [selectedId]);
-
+//fetch users for starting new conversation
+ const fetchUsers = async () => {
+  try {
+    const res = await fetch("/api/chats/users");
+    const data = await res.json();
+    setUsers(data);
+  } catch (err) {
+    console.error("Failed to fetch users:", err);
+  }
+};
+const startConversation = async (otherUserId: string, otherUserName: string) => {
+  setStarting(true);
+  try {
+    const res = await fetch("/api/chats/start/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ otherUserId }),
+    });
+    const conv = await res.json();
+    await fetchConversations();
+    onSelect({
+      id: conv.id,
+      participants: conv.participants,
+      lastMessage: conv.lastMessage ?? "",
+      lastMessageTime: conv.lastMessageTime,
+      otherUserId,
+      otherUserName: otherUserName ?? "Unknown",
+      unreadCount: 0,
+      isOnline: onlineUsers.has(otherUserId),
+    });
+    setShowModal(false);
+    setUserSearch("");
+  } catch (err) {
+    console.error("Failed to start conversation:", err);
+  } finally {
+    setStarting(false);
+  }
+};
   // ── Real-time last message update ──
   useEffect(() => {
     const ws = wsRef.current;
@@ -72,7 +114,7 @@ export function ConversationList({ selectedId, onSelect }: Props) {
 
   const fetchConversations = async () => {
     try {
-      // ✅ Fix — /api/chat/ (singular)
+      // Conversations ke saath-saath unread count bhi lao
       const res = await fetch("/api/chats/conversations");
       if (!res.ok) return;
       const data = await res.json();
@@ -342,10 +384,151 @@ export function ConversationList({ selectedId, onSelect }: Props) {
         }}
         onMouseEnter={(e) => e.currentTarget.style.background = "#15803d"}
         onMouseLeave={(e) => e.currentTarget.style.background = "#16a34a"}
+          onClick={() => {
+            setShowModal(true);
+            fetchUsers();
+                         }}
         >
           <MdAdd size={16} /> New Message
         </button>
       </div>
+      {/* ── New Conversation Modal ── */}
+      {/* ── New Message Modal ── */}
+{showModal && (
+  <div style={{
+    position: "fixed", inset: 0,
+    background: "rgba(0,0,0,0.5)",
+    zIndex: 100,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    padding: 16,
+  }}
+  onClick={() => setShowModal(false)}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        background: "#fff", borderRadius: 16,
+        width: "100%", maxWidth: 400,
+        maxHeight: "80vh",
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+      }}
+    >
+      {/* Modal Header */}
+      <div style={{
+        padding: "16px 20px",
+        borderBottom: "1px solid #e5e7eb",
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>
+          New Message
+        </h3>
+        <button
+          onClick={() => setShowModal(false)}
+          style={{
+            width: 32, height: 32, borderRadius: "50%",
+            border: "none", background: "#f3f4f6",
+            cursor: "pointer", fontSize: 16, color: "#6b7280",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={{
+        padding: "12px 16px",
+        borderBottom: "1px solid #e5e7eb",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          background: "#f9fafb",
+          border: "1px solid #e5e7eb",
+          borderRadius: 10, padding: "8px 12px",
+        }}>
+          <MdSearch size={16} color="#9ca3af" />
+          <input
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+            placeholder="Search users..."
+            autoFocus
+            style={{
+              border: "none", background: "transparent",
+              outline: "none", fontSize: 13,
+              color: "#111827", flex: 1,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Users List */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {users
+          .filter((u) =>
+            (u.name ?? u.email)
+              .toLowerCase()
+              .includes(userSearch.toLowerCase())
+          )
+          .map((user) => (
+            <div
+              key={user.id}
+              onClick={() => startConversation(user.id, user.name ?? user.email)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 16px",
+                borderBottom: "1px solid #f3f4f6",
+                cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#f9fafb"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              {/* Avatar */}
+              <div style={{
+                width: 42, height: 42, borderRadius: "50%",
+                background: getAvatarColor(user.name ?? user.email),
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", fontWeight: 700, fontSize: 16,
+                flexShrink: 0, position: "relative",
+              }}>
+                {(user.name ?? user.email)[0]?.toUpperCase()}
+                {onlineUsers.has(user.id) && (
+                  <div style={{
+                    position: "absolute", bottom: 1, right: 1,
+                    width: 11, height: 11,
+                    background: "#22c55e", borderRadius: "50%",
+                    border: "2px solid #fff",
+                  }} />
+                )}
+              </div>
+
+              {/* Info */}
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 600, color: "#111827",
+                }}>
+                  {user.name ?? "Unknown"}
+                </div>
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                  {user.hikingLevel} •{" "}
+                  {onlineUsers.has(user.id) ? (
+                    <span style={{ color: "#22c55e" }}>Online</span>
+                  ) : "Offline"}
+                </div>
+              </div>
+
+              {/* Arrow */}
+              <div style={{ color: "#9ca3af", fontSize: 18 }}>›</div>
+            </div>
+          ))}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
+
 }
